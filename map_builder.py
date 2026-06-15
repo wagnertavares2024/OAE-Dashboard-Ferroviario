@@ -732,16 +732,24 @@ def build_map(
         zoom   = 7
     else:
         center = [valid_coords["latitude"].mean(), valid_coords["longitude"].mean()]
-        zoom   = 8
+        zoom   = 7
 
     m = folium.Map(
         location=center,
         zoom_start=zoom,
-        tiles="CartoDB positron",
+        tiles="OpenStreetMap",
         control_scale=True,
     )
-    folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(m)
+    folium.TileLayer("CartoDB positron", name="CartoDB Positron").add_to(m)
     folium.TileLayer("CartoDB dark_matter", name="Dark Matter").add_to(m)
+
+    # Ajusta o zoom automaticamente para enquadrar todos os marcadores
+    if not valid_coords.empty:
+        lat_min = valid_coords["latitude"].min()
+        lat_max = valid_coords["latitude"].max()
+        lon_min = valid_coords["longitude"].min()
+        lon_max = valid_coords["longitude"].max()
+        m.fit_bounds([[lat_min, lon_min], [lat_max, lon_max]], padding=(30, 30))
 
     # ── Raios calculados uma vez, reutilizados por RAAE e Patologias ─────────
     radii = _nearest_radii(df)
