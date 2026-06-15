@@ -20,8 +20,8 @@ tmp_oae_data.xlsx
 # VS Code
 .vscode/
 
-# Streamlit cache
-.streamlit/
+# Streamlit cache local (mas config.toml é versionado)
+.streamlit/secrets.toml
 
 # Arquivos temporários Windows
 Thumbs.db
