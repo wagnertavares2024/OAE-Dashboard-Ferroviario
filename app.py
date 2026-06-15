@@ -548,7 +548,7 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(metric_card("Total de OAEs", total, "#3498db"), unsafe_allow_html=True)
 with c2:
-    st.markdown(metric_card("Total Inspecionadas", max(insp_rot_count, insp_esp_count), "#27ae60"), unsafe_allow_html=True)
+    st.markdown(metric_card("Total de Inspeções", insp_rot_count + insp_esp_count, "#27ae60"), unsafe_allow_html=True)
 with c3:
     st.markdown(metric_card("Inspeção Rotineira", insp_rot_count, "#8e44ad"), unsafe_allow_html=True)
 with c4:
@@ -577,22 +577,19 @@ for col, (nivel, label, bg, txt) in zip(cols_cond, CONDICOES):
     with col:
         st.markdown(f"""
         <div style="
-            background:{bg}; border-radius:12px;
-            padding:10px 6px 10px; text-align:center;
-            box-shadow:0 4px 12px rgba(0,0,0,.28);
+            background:{bg}; border-radius:10px;
+            padding:6px 4px 6px; text-align:center;
+            box-shadow:0 3px 8px rgba(0,0,0,.25);
         ">
-          <!-- Classificação com destaque -->
-          <div style="font-size:.85rem; font-weight:900; color:{txt};
-                      letter-spacing:.5px; text-transform:uppercase;
+          <div style="font-size:.72rem; font-weight:900; color:{txt};
+                      letter-spacing:.4px; text-transform:uppercase;
                       line-height:1.2;">{label}</div>
-          <!-- Divisor -->
-          <div style="border-top:1px solid {txt}; opacity:.35;
-                      margin:5px auto; width:55%;"></div>
-          <!-- Quantidade -->
-          <div style="font-size:1.7rem; font-weight:900; color:{txt};
+          <div style="border-top:1px solid {txt}; opacity:.3;
+                      margin:3px auto; width:55%;"></div>
+          <div style="font-size:1.3rem; font-weight:900; color:{txt};
                       line-height:1;">{cnt}</div>
-          <div style="font-size:.65rem; color:{txt}; opacity:.75;
-                      margin-top:3px; letter-spacing:.4px;">OAEs</div>
+          <div style="font-size:.6rem; color:{txt}; opacity:.75;
+                      margin-top:1px; letter-spacing:.4px;">OAEs</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -619,13 +616,13 @@ for col, raae_lbl in zip(raae_cols, RAAE_ORDER):
     pct   = cnt / total * 100 if total else 0
     with col:
         st.markdown(f"""
-        <div style="background:{color};border-radius:10px;padding:10px 8px;
-                    text-align:center;box-shadow:0 3px 8px rgba(0,0,0,.22);">
-          <div style="font-size:.72rem;font-weight:800;color:#fff;
-                      text-transform:uppercase;letter-spacing:.4px;">{raae_lbl}</div>
-          <div style="font-size:1.4rem;font-weight:900;color:#fff;line-height:1.1;
-                      margin:3px 0;">{cnt}</div>
-          <div style="font-size:.65rem;color:rgba(255,255,255,.75);">{pct:.0f}%</div>
+        <div style="background:{color};border-radius:8px;padding:6px 6px;
+                    text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.22);">
+          <div style="font-size:.68rem;font-weight:800;color:#fff;
+                      text-transform:uppercase;letter-spacing:.3px;">{raae_lbl}</div>
+          <div style="font-size:1.15rem;font-weight:900;color:#fff;line-height:1.1;
+                      margin:2px 0;">{cnt}</div>
+          <div style="font-size:.6rem;color:rgba(255,255,255,.75);">{pct:.0f}%</div>
         </div>""", unsafe_allow_html=True)
 
 st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
@@ -679,12 +676,12 @@ for col, lbl, val, cor in _insights:
     with col:
         st.markdown(f"""
         <div style="background:#1e2a38;border-left:4px solid {cor};
-                    border-radius:8px;padding:10px 14px;margin-bottom:4px;">
-          <div style="font-size:.72rem;color:#95a5a6;font-weight:600;
+                    border-radius:8px;padding:6px 10px;margin-bottom:4px;">
+          <div style="font-size:.65rem;color:#95a5a6;font-weight:600;
                       text-transform:uppercase;letter-spacing:.5px;">{lbl}</div>
-          <div style="font-size:1.9rem;font-weight:900;color:{cor};
+          <div style="font-size:1.5rem;font-weight:900;color:{cor};
                       line-height:1.1;">{val}</div>
-          <div style="font-size:.65rem;color:#7f8c8d;">OAEs no filtro atual</div>
+          <div style="font-size:.6rem;color:#7f8c8d;">OAEs no filtro atual</div>
         </div>""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -703,7 +700,7 @@ else:
         show_raae=show_raae,
         show_pat_zones=show_pat_zones,
     )
-    st_folium(fmap, width=None, height=620, returned_objects=[])
+    st_folium(fmap, width=None, height=420, returned_objects=[])
 
 st.markdown("---")
 
