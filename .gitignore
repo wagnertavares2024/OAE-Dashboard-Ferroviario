@@ -7,8 +7,10 @@ __pycache__/
 # Arquivo temporário do upload
 tmp_oae_data.xlsx
 
-# Dados sensíveis (não versionar o Excel com dados reais)
-*.xlsx
+# Dados sensíveis (não versionar uploads temporários)
+tmp_oae_data.xlsx
+
+# Outros arquivos Excel externos (o dados_oae.xlsx É versionado)
 *.xls
 
 # Documentos e apresentações gerados
