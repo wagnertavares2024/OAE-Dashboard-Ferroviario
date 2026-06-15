@@ -90,6 +90,26 @@ def _is_blank(val) -> bool:
     return str(val).strip() == ""
 
 
+def _extract_year_safe(val) -> object:
+    """
+    Extrai o ano (inteiro) de forma segura a partir de:
+    - pandas.Timestamp (célula Excel formatada como data)
+    - float / int já numérico
+    - string "1975" etc.
+    Retorna np.nan para valores inválidos ou fora do intervalo 1800-2100.
+    """
+    if val is None:
+        return np.nan
+    # Timestamp do pandas/datetime (Excel interpreta ano como data)
+    if hasattr(val, "year"):
+        return int(val.year)
+    try:
+        v = float(val)
+        return int(v) if 1800 < v < 2100 else np.nan
+    except (TypeError, ValueError):
+        return np.nan
+
+
 # ---------------------------------------------------------------------------
 # LEITURA DA ABA "DADOS FIXOS"
 # ---------------------------------------------------------------------------
@@ -128,7 +148,9 @@ def load_fixed_data(xl: pd.ExcelFile, sheet_name: str = "Dados Fixos") -> pd.Dat
     # Converte tipos
     df["latitude"]  = df["latitude"].apply(_safe_numeric)
     df["longitude"] = df["longitude"].apply(_safe_numeric)
-    df["ano"]       = pd.to_numeric(df["ano"], errors="coerce").astype("Int64")
+    # Extrai ano como inteiro — suporta Timestamp (Excel date), float e inteiro
+    df["ano"] = df["ano"].apply(_extract_year_safe)
+    df["ano"] = pd.to_numeric(df["ano"], errors="coerce").astype("Int64")
 
     # Normaliza RAAE para uniformizar capitalização
     df["raae"] = df["raae"].astype(str).str.strip()
@@ -246,35 +268,136 @@ def get_latest_inspection(df_rot: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# LEITURA DA ABA "INSPEÇÃO ESPECIAL" (mesma estrutura da Rotineira)
+# ---------------------------------------------------------------------------
+
+def load_especial_data(xl: pd.ExcelFile, sheet_name: str) -> pd.DataFrame:
+    """
+    Lê a aba de inspeção especial com a mesma lógica da Rotineira:
+    header=None, localiza a primeira linha com 'OAE' e usa os mesmos
+    blocos de colunas por ano (ROTINEIRA_YEAR_BLOCKS).
+    """
+    try:
+        raw = xl.parse(sheet_name, header=None)
+    except Exception:
+        return pd.DataFrame()
+
+    data_start = 0
+    for i, val in enumerate(raw.iloc[:, ROTINEIRA_NAME_COL]):
+        if isinstance(val, str) and val.strip().startswith("OAE"):
+            data_start = i
+            break
+
+    rows = []
+    for _, row in raw.iloc[data_start:].reset_index(drop=True).iterrows():
+        nome = str(row.iloc[ROTINEIRA_NAME_COL]).strip() if not _is_blank(row.iloc[ROTINEIRA_NAME_COL]) else None
+        if not nome or not nome.startswith("OAE"):
+            continue
+
+        record = {"nome": nome}
+
+        # Mesmos blocos de anos da Rotineira
+        for year, cols in ROTINEIRA_YEAR_BLOCKS.items():
+            for field in ["data", "geral", "E", "D", "F", "obs"]:
+                col_idx = cols[field]
+                val = row.iloc[col_idx] if col_idx < len(row) else np.nan
+                record[f"{year}_{field}"] = val
+
+        rows.append(record)
+
+    return pd.DataFrame(rows)
+
+
+def get_latest_especial(df_esp: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aplica a mesma lógica de fallback da Rotineira para a Inspeção Especial.
+    Retorna colunas prefixadas com 'esp_':
+        nome, esp_ano, esp_geral, esp_E, esp_D, esp_F, esp_obs, sem_especial
+    """
+    anos_ordem = [2025, 2024, 2023, 2022, 2021]
+    results = []
+
+    for _, row in df_esp.iterrows():
+        found = False
+        for year in anos_ordem:
+            geral = row.get(f"{year}_geral", np.nan)
+            if not _is_blank(geral):
+                results.append({
+                    "nome":        row["nome"],
+                    "esp_ano":     year,
+                    "esp_geral":   _safe_numeric(geral),
+                    "esp_E":       _safe_numeric(row.get(f"{year}_E", np.nan)),
+                    "esp_D":       _safe_numeric(row.get(f"{year}_D", np.nan)),
+                    "esp_F":       _safe_numeric(row.get(f"{year}_F", np.nan)),
+                    "esp_obs":     str(row.get(f"{year}_obs", "")).strip(),
+                    "sem_especial": False,
+                })
+                found = True
+                break
+
+        if not found:
+            results.append({
+                "nome":        row["nome"],
+                "esp_ano":     None,
+                "esp_geral":   "S.I.",
+                "esp_E":       "S.I.",
+                "esp_D":       "S.I.",
+                "esp_F":       "S.I.",
+                "esp_obs":     "",
+                "sem_especial": True,
+            })
+
+    return pd.DataFrame(results)
+
+
+# ---------------------------------------------------------------------------
 # MERGE FINAL
 # ---------------------------------------------------------------------------
 
-def build_master_df(excel_path: str | Path) -> pd.DataFrame:
+def build_master_df(excel_path: str | Path) -> tuple:
     """
-    Carrega o Excel, processa as duas abas e retorna o DataFrame consolidado.
+    Carrega o Excel, processa as abas e retorna:
+        (df_master, qtd_rotineira, qtd_especial)
     """
     xl = pd.ExcelFile(excel_path, engine="openpyxl")
 
-    # Detecta nomes reais das abas (ignora maiúsculas/minúsculas e espaços extras)
     sheet_map = {s.strip().lower(): s for s in xl.sheet_names}
 
-    fixed_sheet    = sheet_map.get("dados fixos",          xl.sheet_names[0])
-    rotineira_sheet = sheet_map.get("inspeção rotineira",  xl.sheet_names[1] if len(xl.sheet_names) > 1 else None)
+    fixed_sheet     = sheet_map.get("dados fixos",        xl.sheet_names[0])
+    rotineira_sheet = sheet_map.get("inspeção rotineira", xl.sheet_names[1] if len(xl.sheet_names) > 1 else None)
+    especial_sheet  = sheet_map.get("inspeção especial",  xl.sheet_names[2] if len(xl.sheet_names) > 2 else None)
 
     df_fixed = load_fixed_data(xl, fixed_sheet)
 
+    # ── Inspeção Rotineira ──────────────────────────────────────────────────
     if rotineira_sheet:
-        df_rot   = load_rotineira_data(xl, rotineira_sheet)
-        df_insp  = get_latest_inspection(df_rot)
+        df_rot    = load_rotineira_data(xl, rotineira_sheet)
+        df_insp   = get_latest_inspection(df_rot)
         df_master = df_fixed.merge(df_insp, on="nome", how="left")
+        qtd_rotineira = int((df_insp["sem_inspecao"] == False).sum())
     else:
         df_master = df_fixed.copy()
-        for col in ["insp_ano","insp_data","insp_geral","insp_E","insp_D","insp_F","insp_obs","patologia","sem_inspecao"]:
-            df_master[col] = "S.I." if col in ("insp_geral","insp_E","insp_D","insp_F","insp_data") else None
+        for col in ["insp_ano","insp_geral","insp_E","insp_D","insp_F","insp_obs","patologia","sem_inspecao"]:
+            df_master[col] = "S.I." if col not in ("insp_ano","insp_obs","patologia","sem_inspecao") else None
+        qtd_rotineira = 0
 
-    # OAEs sem correspondência na aba de inspeção também ficam S.I.
     df_master["sem_inspecao"] = df_master["sem_inspecao"].fillna(True)
     for col in ["insp_geral","insp_E","insp_D","insp_F"]:
         df_master[col] = df_master[col].where(df_master[col].notna(), other="S.I.")
 
-    return df_master
+    # ── Inspeção Especial ───────────────────────────────────────────────────
+    if especial_sheet:
+        df_esp      = load_especial_data(xl, especial_sheet)
+        df_esp_last = get_latest_especial(df_esp)
+        df_master   = df_master.merge(df_esp_last, on="nome", how="left")
+        qtd_especial = int((df_esp_last["sem_especial"] == False).sum())
+    else:
+        for col in ["esp_ano","esp_geral","esp_E","esp_D","esp_F","esp_obs","sem_especial"]:
+            df_master[col] = "S.I." if col not in ("esp_ano","esp_obs","sem_especial") else None
+        qtd_especial = 0
+
+    df_master["sem_especial"] = df_master["sem_especial"].fillna(True)
+    for col in ["esp_geral","esp_E","esp_D","esp_F"]:
+        df_master[col] = df_master[col].where(df_master[col].notna(), other="S.I.")
+
+    return df_master, qtd_rotineira, qtd_especial

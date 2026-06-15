@@ -11,8 +11,18 @@ tmp_oae_data.xlsx
 *.xlsx
 *.xls
 
+# Documentos e apresentações gerados
+*.pptx
+*.ppt
+*.docx
+*.doc
+
 # VS Code
 .vscode/
 
 # Streamlit cache
 .streamlit/
+
+# Arquivos temporários Windows
+Thumbs.db
+desktop.ini
